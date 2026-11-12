@@ -1,4 +1,3 @@
-// Add new question objects here when it is your turn.
 const questions = [
   {
     topic: "JavaScript",
@@ -6,6 +5,14 @@ const questions = [
     choices: ["querySelector()", "addEventListener()", "console.log()", "createElement()"],
     correctAnswer: 1,
     explanation: "addEventListener() connects an event, such as a click, to a function that should run."
+  },
+  {
+    topic: "HTML",
+    type: "multiple",
+    question: "Which HTML elements can be used to organize content on a web page? Select all that apply.",
+    choices: ["<header>", "<section>", "<article>", "<color>"],
+    correctAnswers: [0, 1, 2],
+    explanation: "<header>, <section>, and <article> are semantic elements for organizing content. <color> is not an HTML element."
   }
 ];
 
@@ -17,6 +24,10 @@ const checkButton = document.querySelector("#checkButton");
 const resetButton = document.querySelector("#resetButton");
 const feedback = document.querySelector("#feedback");
 const scoreText = document.querySelector("#scoreText");
+const progressText = document.querySelector("#progressText");
+const progressBar = document.querySelector("#progressBar");
+const questionNumber = document.querySelector("#questionNumber");
+const answerInstructions = document.querySelector("#answerInstructions");
 
 let currentQuestion = 0;
 let score = 0;
@@ -26,16 +37,21 @@ function renderQuestion() {
   const item = questions[currentQuestion];
   questionText.textContent = item.question;
   questionTopic.textContent = item.topic;
+  questionNumber.textContent = String(currentQuestion + 1).padStart(2, "0");
+  progressText.textContent = `Question ${currentQuestion + 1} of ${questions.length}`;
+  progressBar.style.width = `${((currentQuestion + 1) / questions.length) * 100}%`;
+  answerInstructions.textContent = item.type === "multiple" ? "Choose all correct answers" : "Choose one answer";
   answerChoices.querySelectorAll(".answer-option").forEach((option) => option.remove());
 
   item.choices.forEach((choice, index) => {
     const label = document.createElement("label");
     label.className = "answer-option";
     label.innerHTML = `
-      <input type="radio" name="answer" value="${index}" />
+      <input type="${item.type === "multiple" ? "checkbox" : "radio"}" name="answer" value="${index}" />
       <span class="choice-letter">${String.fromCharCode(65 + index)}</span>
-      <span class="choice-text">${choice}</span>
+      <span class="choice-text"></span>
     `;
+    label.querySelector(".choice-text").textContent = choice;
     answerChoices.append(label);
   });
 
@@ -48,34 +64,59 @@ function renderQuestion() {
 
 function checkAnswer() {
   if (answered) return;
-  const selected = document.querySelector('input[name="answer"]:checked');
+  const selected = [...document.querySelectorAll('input[name="answer"]:checked')];
 
-  if (!selected) {
+  if (selected.length === 0) {
     feedback.textContent = "Please choose an answer first.";
     feedback.className = "feedback error";
     return;
   }
 
-  const selectedIndex = Number(selected.value);
-  const correctIndex = questions[currentQuestion].correctAnswer;
+  const item = questions[currentQuestion];
+  const selectedIndexes = selected.map((input) => Number(input.value));
+  const correctIndexes = item.type === "multiple" ? item.correctAnswers : [item.correctAnswer];
   const options = document.querySelectorAll(".answer-option");
   answered = true;
+  const isCorrect = selectedIndexes.length === correctIndexes.length
+    && selectedIndexes.every((index) => correctIndexes.includes(index));
 
-  if (selectedIndex === correctIndex) {
+  if (isCorrect) {
     score += 1;
-    options[selectedIndex].classList.add("correct");
-    feedback.textContent = `✓ Correct! ${questions[currentQuestion].explanation}`;
+    correctIndexes.forEach((index) => options[index].classList.add("correct"));
+    feedback.textContent = `✓ Correct! ${item.explanation}`;
     feedback.className = "feedback success";
   } else {
-    options[selectedIndex].classList.add("incorrect");
-    options[correctIndex].classList.add("correct");
-    feedback.textContent = `Not quite. ${questions[currentQuestion].explanation}`;
+    selectedIndexes.filter((index) => !correctIndexes.includes(index))
+      .forEach((index) => options[index].classList.add("incorrect"));
+    correctIndexes.forEach((index) => options[index].classList.add("correct"));
+    feedback.textContent = `Not quite. ${item.explanation}`;
     feedback.className = "feedback error";
   }
 
   scoreText.textContent = `Score: ${score}`;
-  checkButton.disabled = true;
+  const hasNextQuestion = currentQuestion < questions.length - 1;
+  checkButton.disabled = false;
+  checkButton.innerHTML = hasNextQuestion
+    ? 'Next question <span aria-hidden="true">→</span>'
+    : 'Finish quiz <span aria-hidden="true">→</span>';
   document.querySelectorAll('input[name="answer"]').forEach((input) => { input.disabled = true; });
+}
+
+function goToNextQuestion() {
+  if (!answered) {
+    checkAnswer();
+    return;
+  }
+
+  if (currentQuestion < questions.length - 1) {
+    currentQuestion += 1;
+    renderQuestion();
+    return;
+  }
+
+  feedback.textContent = `Quiz complete! Final score: ${score} out of ${questions.length}.`;
+  feedback.className = "feedback success";
+  checkButton.disabled = true;
 }
 
 function resetQuiz() {
@@ -88,7 +129,7 @@ function resetQuiz() {
 // Event 1: submit the form by clicking the check button.
 quizForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  checkAnswer();
+  goToNextQuestion();
 });
 
 // Event 2: enable the button when an answer changes.
